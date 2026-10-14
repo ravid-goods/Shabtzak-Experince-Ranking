@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { CATEGORIES, PROFILE_QUESTIONS, FIXED_SLIDERS, QUESTION_BANK } = require('../questions.js');
 
-const TYPE = { single: 'בחירה', multi: 'בחירה מרובה', number: 'מספר', slider: 'סרגל 1–10', text: 'טקסט חופשי' };
+const TYPE = { single: 'בחירה', multi: 'בחירה מרובה', number: 'מונה', slider: 'סרגל 1–10', text: 'טקסט חופשי', bonus: 'כרטיסי בונוס' };
 const cell = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
 function table(rows, withEnabled) {

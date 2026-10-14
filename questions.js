@@ -7,13 +7,16 @@
  *   - כדי להריץ רק שאלות מסוימות: ?q=shifts_total,nights_white,...
  *
  * סוגי שאלות:
- *   single  – בחירה אחת.          options: [{label, pain}]
- *   multi   – בחירה מרובה.         options: [{label, pain}]  (הסבל מצטבר, חסום ב-10)
- *   number  – מספר חופשי.          scale: [[סף, סבל], ...]  (הסף הגבוה ביותר שעבר קובע)
- *   slider  – סרגל 1–10.           painPerPoint: כמה סבל כל נקודה (יכול להיות שלילי)
- *   text    – טקסט חופשי.          לא נכנס לחישוב, מוצג בכרטיס התוצאה
+ *   single  – בחירה אחת (כרטיסים).   options: [{label, pain}]   display: 'segmented' = סרגל לשוניות
+ *   multi   – בחירה מרובה.            options: [{label, pain}]  (הסבל מצטבר, חסום ב-10)
+ *   number  – מונה +/−.               scale: [[סף, סבל], ...]  max, step.  או pointsPerUnit = נקודות לכל יחידה
+ *   slider  – סרגל 1–10.              painPerPoint, או pointsPerPoint = נקודות ישירות לכל נקודה
+ *   bonus   – כרטיסי "אירוע חריג".    options: [{label, sub, points}]  נקודות ישירות, בלי תקרה
+ *   text    – טקסט חופשי.             לא נכנס לחישוב, מוצג בכרטיס התוצאה
  *
- * pain הוא בסולם 0–10. weight (ברירת מחדל 1) קובע כמה השאלה שוקלת בתוך הקטגוריה.
+ * תווית בסגנון "כותרת (הערה)" מוצגת ככותרת + שורת משנה בכרטיס.
+ *
+ * pain הוא בסולם 0–10. נקודות לתשובה = pain × 10 × weight × משקל הקטגוריה (מוצג על כל כרטיס).
  *
  * rating – הדירוג של כל שאלה (1–5) לפי שלושת הקריטריונים:
  *   data  – כמה היא נגזרת ממה שמופיע בטבלאות השיבוץ
@@ -78,12 +81,13 @@ const PROFILE_QUESTIONS = [
   {
     id: 'platoon',
     type: 'single',
+    display: 'segmented',
     text: 'באיזו מחלקה אתה?',
     options: [
       { label: 'מחלקה 1', value: '1' },
       { label: 'מחלקה 2', value: '2' },
       { label: 'מחלקה 3', value: '3' },
-      { label: 'מפל"ג / מפקדה', value: 'hq' },
+      { label: 'מפל"ג', value: 'hq' },
     ],
     rating: { data: 5, humor: 1, group: 5 },
   },
@@ -123,18 +127,14 @@ const PROFILE_QUESTIONS = [
   },
   {
     id: 'kids',
-    type: 'single',
+    type: 'number',
     text: 'כמה ילדים?',
-    options: [
-      { label: 'אפס', value: 0, bonus: 0 },
-      { label: 'אחד', value: 1, bonus: 3 },
-      { label: 'שניים', value: 2, bonus: 5 },
-      { label: 'שלושה', value: 3, bonus: 7 },
-      { label: 'ארבעה ומעלה (פלוגה משלי)', value: 4, bonus: 9 },
-      { label: 'אחד בדרך / נולד במילואים', value: 'soon', bonus: 10 },
-    ],
+    hint: 'כל ילד בבית = עוד סיבה לספור ימים',
+    max: 12,
+    pointsPerUnit: 80,
     rating: { data: 1, humor: 3, group: 4 },
   },
+
 ];
 
 /* חמש השאלות הקבועות – מופיעות בכל ריצה, סרגל 1–10 */
@@ -145,7 +145,7 @@ const FIXED_SLIDERS = [
     text: 'כמה זמן שיחקת פוקר בינתיים?',
     minLabel: 'ממש מעט',
     maxLabel: 'הכי הרבה שאפשר',
-    painPerPoint: -0.8, // מי ששיחק הרבה פוקר – כנראה היה לו זמן
+    pointsPerPoint: -25, // מי ששיחק הרבה פוקר – כנראה היה לו זמן
     rating: { data: 1, humor: 5, group: 5 },
   },
   {
@@ -194,6 +194,8 @@ const QUESTION_BANK = [
   // ───────── משמרות ועמדות ─────────
   {
     id: 'shifts_total',
+    max: 200,
+    step: 5,
     category: 'shifts',
     type: 'number',
     text: 'בערך כמה פעמים הופעת בשבצ"ק (כל משבצת נחשבת) ב-80 הימים?',
@@ -384,6 +386,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'double_shifts',
+    max: 30,
+    step: 1,
     category: 'shifts',
     type: 'number',
     text: 'כמה פעמים יצאת ממשמרת ונכנסת ישר לעוד אחת?',
@@ -435,6 +439,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'zombie_shifts',
+    max: 60,
+    step: 1,
     category: 'hours',
     type: 'number',
     text: 'כמה משמרות 02:00–06:00 עשית?',
@@ -454,6 +460,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'nights_white',
+    max: 30,
+    step: 1,
     category: 'hours',
     type: 'number',
     text: 'כמה לילות לבנים עשית? (למשל 22:00 ואז 02:00, או 02:00 ואז 06:00)',
@@ -532,6 +540,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'night_before_home',
+    max: 15,
+    step: 1,
     category: 'home',
     type: 'number',
     text: 'כמה פעמים שובצת ל-22:00 או 02:00 בלילה שלפני יציאה?',
@@ -555,6 +565,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'home_count',
+    max: 20,
+    step: 1,
     category: 'home',
     type: 'number',
     text: 'כמה פעמים הופעת ברשימת ה"יוצאים" ב-80 יום?',
@@ -625,6 +637,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'rest_violations',
+    max: 30,
+    step: 1,
     category: 'rest',
     type: 'number',
     text: 'כמה פעמים קיבלת פחות מנוחה ממה שחוק המנוחה של השבצ"ק מחייב (2 שעות לכל שעת משמרת)?',
@@ -689,6 +703,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'woken_up',
+    max: 40,
+    step: 1,
     category: 'rest',
     type: 'number',
     text: 'כמה פעמים העירו אותך באמצע מנוחה (הקפצה / "מי במשמרת?!")',
@@ -714,6 +730,8 @@ const QUESTION_BANK = [
   // ───────── גיוון משימות ─────────
   {
     id: 'variety_count',
+    max: 12,
+    step: 1,
     category: 'variety',
     type: 'number',
     text: 'בכמה סוגי משימות שונים שובצת? (יש 12 בשבצ"ק)',
@@ -738,6 +756,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'same_station_streak',
+    max: 30,
+    step: 1,
     category: 'variety',
     type: 'number',
     text: 'מה הרצף הכי ארוך של ימים שבהם קיבלת את אותה משימה?',
@@ -786,6 +806,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'changes_after_publish',
+    max: 30,
+    step: 1,
     category: 'shabtzak',
     type: 'number',
     text: 'כמה פעמים השיבוץ שלך השתנה אחרי שכבר פורסם?',
@@ -809,6 +831,8 @@ const QUESTION_BANK = [
   },
   {
     id: 'days_off_base',
+    max: 40,
+    step: 1,
     category: 'shabtzak',
     type: 'number',
     text: 'כמה ימים היית ב"נוכחים" ולא הופעת בשום משבצת?',
@@ -921,21 +945,23 @@ const QUESTION_BANK = [
   {
     id: 'extreme_events',
     category: 'events',
-    type: 'multi',
-    text: 'מה מזה קרה לך? (אפשר כמה)',
+    type: 'bonus',
+    text: 'אירועים חריגים',
+    hint: 'מסמנים כל מה שקרה. אין גבול עליון לסבל.',
     options: [
-      { label: 'שכחו להחליף אותי בעמדה', pain: 4 },
-      { label: 'עשיתי משמרת בגשם בלי מעיל', pain: 3 },
-      { label: 'יצאתי הביתה והקפיצו אותי באותו יום', pain: 6 },
-      { label: 'צמתי ביום כיפור בעמדה', pain: 4 },
-      { label: 'מרדכי טיפל בי (גם בחמ"ל וגם כחובש)', pain: 3 },
-      { label: 'החמצתי אירוע משפחתי גדול', pain: 6 },
-      { label: 'כלום. הייתי בכלל במילואים?', pain: -3 },
+      { label: 'שכחו להחליף אותי בעמדה', sub: 'עוד שעתיים, על חשבון הבית', points: 150 },
+      { label: 'יצאתי הביתה והקפיצו אותי באותו יום', sub: 'הספקתי להוריד נעליים', points: 300 },
+      { label: 'צמתי ביום כיפור בעמדה', sub: 'גמר חתימה טובה, מבונקר', points: 200 },
+      { label: 'נולד לי ילד במילואים', sub: 'מזל טוב! הנה משמרת', points: 500 },
+      { label: 'החמצתי אירוע משפחתי גדול', sub: 'שלחו לי סרטון בוואטסאפ', points: 250 },
+      { label: 'מרדכי טיפל בי', sub: 'גם בחמ"ל וגם כחובש. באותה שעה', points: 120 },
+      { label: 'עשיתי משמרת בגשם בלי מעיל', sub: 'הטבע לא קרא את השבצ"ק', points: 100 },
+      { label: 'כלום. הייתי בכלל במילואים?', sub: 'הנחה לתיירים', points: -200 },
     ],
-    weight: 1.5,
     enabled: true,
-    rating: { data: 2, humor: 4, group: 4 },
+    rating: { data: 2, humor: 5, group: 4 },
   },
+
   {
     id: 'worst_shift',
     category: 'events',

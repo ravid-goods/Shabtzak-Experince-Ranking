@@ -3,7 +3,6 @@
   'use strict';
 
   const SERVICE_DAYS = 80;
-  const ROLE_BASE_POINTS = 20; // נקודות לכל יחידת base של תפקיד
 
   /* הדרגות נקבעות לפי היחס בין הציון שלך לממוצע המשוער של התפקיד שלך */
   const TIERS = [
@@ -49,11 +48,23 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const catWeight = (q) => (q.category ? CATEGORIES[q.category].weight : 1);
   const painToPoints = (q, pain) => Math.round(pain * 10 * (q.weight || 1) * catWeight(q));
+  // לאפשרות יש נקודות קבועות (points) או סבל 0–10 (pain) שהופך לנקודות
+  const optionPoints = (q, o) => (o.points !== undefined ? o.points : painToPoints(q, clamp(o.pain ?? 0, 0, 10)));
+  const hasFixedPoints = (q) => q.options.some((o) => o.points !== undefined);
 
   function scalePain(q, n) {
     let pain = q.scale[0][1];
     for (const [threshold, p] of q.scale) if (n >= threshold) pain = p;
     return pain;
+  }
+
+  function sliderPoints(q, v) {
+    if (q.pointsByRange) {
+      const r = q.pointsByRange.find(([lo, hi]) => v >= lo && v <= hi);
+      return r ? r[2] : 0;
+    }
+    if (q.pointsPerPoint !== undefined) return Math.round(q.pointsPerPoint * v);
+    return painToPoints(q, clamp((q.baseline || 0) + q.painPerPoint * v, 0, 10));
   }
 
   // מחזיר נקודות לשאלה, או null אם לא נענתה
@@ -62,16 +73,16 @@
     switch (q.type) {
       case 'single':
         if (!q.category) return null;
-        return painToPoints(q, clamp(q.options[a].pain ?? 0, 0, 10));
+        return optionPoints(q, q.options[a]);
       case 'multi':
         if (!a.length) return null;
+        if (hasFixedPoints(q)) return a.reduce((s, i) => s + optionPoints(q, q.options[i]), 0);
         return painToPoints(q, clamp(a.reduce((s, i) => s + (q.options[i].pain ?? 0), q.baseline || 0), 0, 10));
       case 'number':
         if (q.pointsPerUnit) return Number(a) * q.pointsPerUnit;
         return painToPoints(q, clamp(scalePain(q, Number(a)), 0, 10));
       case 'slider':
-        if (q.pointsPerPoint !== undefined) return Math.round(q.pointsPerPoint * Number(a));
-        return painToPoints(q, clamp((q.baseline || 0) + q.painPerPoint * Number(a), 0, 10));
+        return sliderPoints(q, Number(a));
       case 'bonus':
         if (!a.length) return null;
         return a.reduce((s, i) => s + q.options[i].points, 0);
@@ -80,16 +91,36 @@
     }
   }
 
-  function expectedPain(q) {
+  // הנקודות של תשובה "ממוצעת" – בשביל הממוצע המשוער של תת-הקבוצה
+  function expectedPoints(q) {
+    const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
     switch (q.type) {
       case 'single':
-        return q.options.reduce((s, o) => s + clamp(o.pain ?? 0, 0, 10), 0) / q.options.length;
+        return mean(q.options.map((o) => optionPoints(q, o)));
       case 'multi':
-        return 5;
+        return hasFixedPoints(q) ? q.options.reduce((s, o) => s + optionPoints(q, o), 0) / 2 : painToPoints(q, 5);
       case 'number':
-        return q.scale.reduce((s, [, p]) => s + p, 0) / q.scale.length;
+        if (q.pointsPerUnit) return q.pointsPerUnit * (q.typical ?? 3);
+        return painToPoints(q, mean(q.scale.map(([, p]) => p)));
       case 'slider':
-        return clamp((q.baseline || 0) + q.painPerPoint * 5.5, 0, 10);
+        return mean([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => sliderPoints(q, v)));
+      default:
+        return 0;
+    }
+  }
+
+  // התקרה של השאלה – בשביל אחוזי הפירוט לפי קטגוריה
+  function maxPoints(q) {
+    switch (q.type) {
+      case 'single':
+        return Math.max(0, ...q.options.map((o) => optionPoints(q, o)));
+      case 'multi':
+        return hasFixedPoints(q) ? q.options.reduce((s, o) => s + Math.max(0, optionPoints(q, o)), 0) : painToPoints(q, 10);
+      case 'number':
+        if (q.pointsPerUnit) return Math.max(0, q.pointsPerUnit * (q.typical ?? 3) * 2);
+        return painToPoints(q, 10);
+      case 'slider':
+        return Math.max(0, ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => sliderPoints(q, v)));
       default:
         return 0;
     }
@@ -105,8 +136,8 @@
   function roleBaseline(answers) {
     const role = profileOpt(answers, 'role');
     let sum = 0;
-    for (const q of BANK) if (q.category && q.type !== 'bonus') sum += painToPoints(q, expectedPain(q));
-    return Math.round(sum * (role.mult ?? 1) + (role.base ?? 0) * ROLE_BASE_POINTS);
+    for (const q of BANK) if (q.category && q.type !== 'bonus') sum += expectedPoints(q);
+    return Math.max(1, Math.round(sum * (role.mult ?? 1)));
   }
 
   function computeResult(answers) {
@@ -120,21 +151,22 @@
       else if (q.category) {
         cats[q.category] = cats[q.category] || { pts: 0, max: 0 };
         cats[q.category].pts += pts;
-        cats[q.category].max += painToPoints(q, 10);
-      } else extra += pts; // ילדים, פוקר
+        cats[q.category].max += maxPoints(q);
+      } else extra += pts; // ילדים, חמשת הסרגלים הקבועים
     }
     const role = profileOpt(answers, 'role');
     const marital = profileOpt(answers, 'marital');
+    const platoon = profileOpt(answers, 'platoon');
     const catSum = Object.values(cats).reduce((s, c) => s + c.pts, 0);
-    const score = Math.max(
-      0,
-      Math.round(catSum * (role.mult ?? 1) * (marital.mult ?? 1) + (role.base ?? 0) * ROLE_BASE_POINTS + extra + bonus)
-    );
-    const breakdown = Object.entries(cats).map(([key, c]) => ({
-      key,
-      label: CATEGORIES[key].label,
-      pct: Math.round((c.pts / c.max) * 100),
-    }));
+    const mult = (role.mult ?? 1) * (marital.mult ?? 1) * (platoon.hiddenMult ?? 1);
+    const score = Math.max(0, Math.round(catSum * mult + extra + bonus));
+    const breakdown = Object.entries(cats)
+      .filter(([, c]) => c.max > 0)
+      .map(([key, c]) => ({
+        key,
+        label: CATEGORIES[key].label,
+        pct: clamp(Math.round((c.pts / c.max) * 100), 0, 100),
+      }));
     const dna = {};
     for (const s of FIXED_SLIDERS) if (answers[s.id] !== undefined) dna[s.id] = Number(answers[s.id]);
     return {
@@ -144,10 +176,10 @@
       dna,
       role: role.label,
       roleValue: role.value,
-      platoon: profileOpt(answers, 'platoon').label,
+      platoon: platoon.label,
       marital: marital.label,
       kids: answers.kids,
-      started: catSum + bonus + extra > 0 || role.label !== undefined,
+      started: catSum !== 0 || bonus !== 0 || extra !== 0 || role.label !== undefined,
     };
   }
 
@@ -216,8 +248,9 @@
     String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n) => String(Math.round(Number(n)));
   const signed = (n) => `<bdi dir="ltr">${n < 0 ? `−${fmt(-n)}` : `+${fmt(n)}`}</bdi>`;
-  // טקסט עם שעות: מבודד טווחי שעות כדי שלא יתהפכו בעברית
-  const rich = (s) => esc(s).replace(/\d{1,2}:\d{2}(?:\s*[–-]\s*\d{1,2}:\d{2})?/g, (m) => `<bdi dir="ltr">${m}</bdi>`);
+  // טקסט עם שעות וטווחים: מבודד אותם כדי שלא יתהפכו בעברית
+  const rich = (s) =>
+    esc(s).replace(/\d{1,2}:\d{2}(?:\s*[–-]\s*\d{1,2}:\d{2})?|\d+\s*[–-]\s*\d+|\d+\+/g, (m) => `<bdi dir="ltr">${m}</bdi>`);
 
   // "כותרת (הערה)" → כותרת + שורת משנה
   function splitLabel(o) {
@@ -253,9 +286,10 @@
 
   /* ───────── רינדור שאלות ───────── */
   function optionBadge(q, o) {
-    if (o.mult !== undefined) return `<bdi dir="ltr">×${o.mult}</bdi>`;
+    if (o.mult !== undefined) return `<bdi dir="ltr">×${o.multLabel || o.mult}</bdi>`;
     if (q.type === 'bonus') return signed(o.points);
     if (!q.category) return '';
+    if (o.points !== undefined) return signed(o.points);
     return signed(painToPoints(q, clamp(o.pain ?? 0, -10, 10)));
   }
 
@@ -269,9 +303,10 @@
         .join('')}</div>`;
     }
 
-    const scroll = q.options.length > 6 ? 'scroll' : '';
+    const scroll = q.options.length > 6 && q.display !== 'outlined' ? 'scroll' : '';
     const cols = q.options.length === 4 ? 'cols-2' : '';
-    return `<div class="cards ${scroll} ${cols}">${q.options
+    const outlined = q.display === 'outlined' ? 'outlined' : '';
+    return `<div class="cards ${scroll} ${cols} ${outlined}">${q.options
       .map((o, i) => {
         const on = isMulti ? (a || []).includes(i) : a === i;
         const [title, sub] = splitLabel(o);
@@ -449,7 +484,7 @@
       <div class="score-wrap"><div class="score" id="hero-score">${fmt(r.score)}</div></div>
       <div class="line"><div style="width:${width}%"></div></div>
       <div class="tier-label">${tier ? esc(tier.label) : `${SERVICE_DAYS} יום · פלוגה אחת · שבצ"ק אחד`}</div>
-      <div class="headline">${tier ? esc(tier.text) : 'כולם עברו את אותם 80 יום. אבל מישהו סבל יותר. מגללים למטה, עונים, והמדד עולה.'}</div>
+      <div class="headline">${tier ? esc(tier.text) : 'כולם יעברו את אותם 80 יום. אבל יש מי שיסבול יותר. ממלאים את הסטטוס שלכם, מדרגים את השיבוצים שלכם עד כה, ותקבלו את הדירוג שלכם בפלוגה.'}</div>
       ${compare ? `<div class="compare">${compare}</div>` : ''}
       <div class="round-btns">
         ${mode === 'shared'

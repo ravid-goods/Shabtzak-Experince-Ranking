@@ -9,14 +9,17 @@
  * סוגי שאלות:
  *   single  – בחירה אחת (כרטיסים).   options: [{label, pain}]   display: 'segmented' = סרגל לשוניות
  *   multi   – בחירה מרובה.            options: [{label, pain}]  (הסבל מצטבר, חסום ב-10)
- *   number  – מונה +/−.               scale: [[סף, סבל], ...]  max, step.  או pointsPerUnit = נקודות לכל יחידה
- *   slider  – סרגל 1–10.              painPerPoint, או pointsPerPoint = נקודות ישירות לכל נקודה
+ *   number  – מונה +/−.               scale: [[סף, סבל], ...]  max, step.  או pointsPerUnit = נקודות לכל יחידה (typical = ערך ממוצע משוער)
+ *   slider  – סרגל 1–10.              painPerPoint, או pointsPerPoint = נקודות לכל נקודה, או pointsByRange = [[מ, עד, נקודות]]
  *   bonus   – כרטיסי "אירוע חריג".    options: [{label, sub, points}]  נקודות ישירות, בלי תקרה
  *   text    – טקסט חופשי.             לא נכנס לחישוב, מוצג בכרטיס התוצאה
  *
  * תווית בסגנון "כותרת (הערה)" מוצגת ככותרת + שורת משנה בכרטיס.
  *
  * pain הוא בסולם 0–10. נקודות לתשובה = pain × 10 × weight × משקל הקטגוריה (מוצג על כל כרטיס).
+ * אפשר גם לקבוע נקודות ישירות לאפשרות: { label, points } – אז pain ו-weight לא משפיעים.
+ * display: 'outlined' = כרטיסים נפרדים עם גבול מודגש בין האפשרויות.
+ * mult = מכפיל שמוצג על הכרטיס. hiddenMult = מכפיל שנכנס לחישוב ולא מוצג.
  *
  * rating – הדירוג של כל שאלה (1–5) לפי שלושת הקריטריונים:
  *   data  – כמה היא נגזרת ממה שמופיע בטבלאות השיבוץ
@@ -84,10 +87,11 @@ const PROFILE_QUESTIONS = [
     display: 'segmented',
     text: 'באיזו מחלקה אתה?',
     options: [
-      { label: 'מחלקה 1', value: '1' },
-      { label: 'מחלקה 2', value: '2' },
-      { label: 'מחלקה 3', value: '3' },
-      { label: 'מפל"ג', value: 'hq' },
+      // המכפילים של המחלקה נכנסים לחישוב אבל לא מוצגים למשתמש
+      { label: 'מחלקה 1', value: '1', hiddenMult: 1.4 },
+      { label: 'מחלקה 2', value: '2', hiddenMult: 0.8 },
+      { label: 'מחלקה 3', value: '3', hiddenMult: 1 },
+      { label: 'מפל"ג', value: 'hq', hiddenMult: 0.95 },
     ],
     rating: { data: 5, humor: 1, group: 5 },
   },
@@ -96,35 +100,39 @@ const PROFILE_QUESTIONS = [
     type: 'single',
     text: 'מה התפקיד שלך?',
     options: [
-      { label: 'לוחם', value: 'fighter', mult: 1.0, base: 0 },
-      { label: 'מ"כ', value: 'mak', mult: 1.05, base: 2 },
-      { label: 'סמל', value: 'samal', mult: 1.05, base: 3 },
-      { label: 'מ"מ', value: 'mm', mult: 1.0, base: 6 },
-      { label: 'ס\' (סמ"פ)', value: 'samap', mult: 0.95, base: 7 },
-      { label: 'מ"פ', value: 'mp', mult: 0.9, base: 10 },
-      { label: 'המפקד הרס"פ', value: 'rasap', mult: 0.8, base: 6 },
-      { label: 'סרס"פ', value: 'sarsap', mult: 0.85, base: 3 },
-      { label: 'חמ"ל', value: 'hamal', mult: 1.0, base: 2 },
-      { label: 'חובש', value: 'medic', mult: 0.95, base: 3 },
-      { label: 'חמ"ל-חובש (רק מרדכי!)', value: 'mordechai', mult: 1.3, base: 15, mordechaiOnly: true },
+      { label: 'לוחם', value: 'fighter', mult: 1 },
+      { label: 'מ"כ', value: 'mak', mult: 1.25 },
+      { label: 'סמל', value: 'samal', mult: 1.3 },
+      { label: 'מ"מ', value: 'mm', mult: 1.5 },
+      { label: 'ס\' (סמ"פ)', value: 'samap', mult: 1.42 },
+      { label: 'מ"פ', value: 'mp', mult: 2 },
+      { label: 'המפקד הרס"פ', value: 'rasap', mult: 1.6 },
+      { label: 'סרס"פ', value: 'sarsap', mult: 0.9 },
+      { label: 'חמ"ל', value: 'hamal', mult: 0.92 },
+      { label: 'חובש', value: 'medic', mult: 1.2 },
+      { label: 'חפ"ק', value: 'hafak', mult: 0.85 },
+      // שורש שלישי של פאי ≈ 1.4646
+      { label: 'חמ"ל-מ"כ-חובש (רק מרדכי!)', value: 'mordechai', mult: Math.cbrt(Math.PI), multLabel: '∛π', mordechaiOnly: true },
     ],
     rating: { data: 5, humor: 3, group: 5 },
   },
+
   {
     id: 'marital',
     type: 'single',
     text: 'סטטוס זוגי',
     options: [
-      { label: 'רווק (ונהנה מכל רגע)', value: 'single', mult: 0.9 },
-      { label: 'רווק בתהליך (יש מישהי מהטינדר שמחכה)', value: 'dating', mult: 0.95 },
-      { label: 'בזוגיות', value: 'couple', mult: 1.0 },
-      { label: 'בזוגיות רצינית ("אז מתי אתה יוצא?")', value: 'serious', mult: 1.05 },
-      { label: 'מאורס (החתונה בעוד חודשיים, אגב)', value: 'engaged', mult: 1.12 },
-      { label: 'נשוי טרי', value: 'newlywed', mult: 1.1 },
-      { label: 'נשוי וותיק', value: 'married', mult: 1.15 },
+      { label: 'רווק בלי אופק', value: 'single_hopeless', mult: 1.1 },
+      { label: 'רווק עם פוטנציאל (יש מישהי מהטינדר שמחכה)', value: 'single_potential', mult: 0.9 },
+      { label: 'בזוגיות', value: 'couple', mult: 1 },
+      { label: 'בזוגיות רצינית ("אז מתי אתה יוצא?")', value: 'serious', mult: 1.1 },
+      { label: 'מאורס / כמעט מאורס (החתונה בעוד חודשיים, אגב)', value: 'engaged', mult: 1.25 },
+      { label: 'נשוי טרי', value: 'newlywed', mult: 3 },
+      { label: 'נשוי ותיק', value: 'married', mult: 2.1 },
     ],
     rating: { data: 1, humor: 4, group: 4 },
   },
+
   {
     id: 'kids',
     type: 'number',
@@ -154,7 +162,7 @@ const FIXED_SLIDERS = [
     text: 'כמה אתה פלמר?',
     minLabel: 'בכלל לא',
     maxLabel: 'פלמר מוחלט',
-    painPerPoint: 0,
+    pointsByRange: [[1, 4, 15], [5, 8, -12], [9, 9, -15], [10, 10, -50]], // [מ, עד, נקודות]
     rating: { data: 1, humor: 5, group: 5 },
   },
   {
@@ -163,7 +171,7 @@ const FIXED_SLIDERS = [
     text: 'כמה אתה צברי?',
     minLabel: 'בכלל לא',
     maxLabel: 'צברי מוחלט',
-    painPerPoint: 0,
+    pointsByRange: [[1, 3, -10], [4, 6, 15], [7, 9, 35], [10, 10, 0]], // [מ, עד, נקודות]
     rating: { data: 1, humor: 5, group: 5 },
   },
   {
@@ -172,7 +180,7 @@ const FIXED_SLIDERS = [
     text: 'כמה אתה בסוס?',
     minLabel: 'בכלל לא',
     maxLabel: 'בסוס מוחלט',
-    painPerPoint: 0,
+    pointsByRange: [[1, 3, -10], [4, 6, -15], [7, 9, -35], [10, 10, -175]], // [מ, עד, נקודות]
     rating: { data: 1, humor: 5, group: 5 },
   },
   {
@@ -181,7 +189,7 @@ const FIXED_SLIDERS = [
     text: 'כמה אתה מחלקה 1?',
     minLabel: 'בכלל לא',
     maxLabel: 'מחלקה 1 בדם',
-    painPerPoint: 0,
+    pointsByRange: [[1, 3, 25], [4, 6, 40], [7, 9, 55], [10, 10, 115]], // [מ, עד, נקודות]
     rating: { data: 2, humor: 5, group: 5 },
   },
 ];
@@ -209,12 +217,19 @@ const QUESTION_BANK = [
     id: 'shifts_defense',
     category: 'shifts',
     type: 'single',
+    display: 'outlined',
     text: `כמה משמרות 4 שעות בעמדות ההגנה עשית? (${STATIONS.gate} / ${STATIONS.bunker} / ${STATIONS.east} / ${STATIONS.south})`,
-    options: RANGE_SHIFTS,
-    weight: 1.3,
+    options: [
+      { label: '0', points: -250 },
+      { label: '1–15', points: 25 },
+      { label: '16–30', points: 155 },
+      { label: '31–45', points: 350 },
+      { label: '45+ (אני חלק מהעמדה)', points: 550 },
+    ],
     enabled: true,
     rating: { data: 5, humor: 2, group: 5 },
   },
+
   {
     id: 'shifts_gate',
     category: 'shifts',
@@ -311,7 +326,7 @@ const QUESTION_BANK = [
     id: 'shifts_full_day',
     category: 'shifts',
     type: 'single',
-    text: `כמה ימים שלמים (24 שעות) עשית ב${STATIONS.hafak} או ב${STATIONS.kitchen}?`,
+    text: `כמה שיבוצים עשית ב${STATIONS.hafak} או ב${STATIONS.kitchen}?`,
     options: [
       { label: '0 (איך?!)', pain: 0 },
       { label: '1–2', pain: 3 },
@@ -355,18 +370,18 @@ const QUESTION_BANK = [
     type: 'single',
     text: 'איזו משימה היא "הבית השני" שלך?',
     options: [
-      { label: STATIONS.gate, pain: 6 },
-      { label: STATIONS.bunker, pain: 7 },
-      { label: `${STATIONS.east} / ${STATIONS.south}`, pain: 6 },
-      { label: STATIONS.patrol, pain: 6 },
-      { label: STATIONS.carmel, pain: 5 },
-      { label: STATIONS.hamal, pain: 5 },
-      { label: `${STATIONS.hafak} / ${STATIONS.kitchen}`, pain: 7 },
-      { label: 'האוהל. אני בעיקר ישנתי', pain: 0 },
+      { label: STATIONS.gate, points: 125 },
+      { label: STATIONS.bunker, points: 78 },
+      { label: STATIONS.east, points: -15 },
+      { label: STATIONS.south, points: 90 },
+      { label: STATIONS.patrol, points: 16 },
+      { label: STATIONS.hamal, points: -5 },
+      { label: 'האוהל. אני בעיקר ישנתי', points: 0 },
     ],
     enabled: true,
     rating: { data: 5, humor: 3, group: 5 },
   },
+
   {
     id: 'station_never',
     category: 'shifts',
@@ -394,7 +409,20 @@ const QUESTION_BANK = [
     scale: [[0, 0], [1, 3], [3, 5], [6, 8], [10, 10]],
     enabled: false,
     rating: { data: 5, humor: 2, group: 4 },
+  },  {
+    id: 'natan_covered',
+    max: 30,
+    step: 1,
+    category: 'shifts',
+    type: 'number',
+    text: 'כמה פעמים נתן עשה משמרת בעמדה במקומך?',
+    hint: 'כל פעם = −45 נקודות. תגיד תודה לנתן.',
+    pointsPerUnit: -45,
+    typical: 1,
+    enabled: true,
+    rating: { data: 4, humor: 5, group: 4 },
   },
+
   {
     id: 'same_partner',
     category: 'shifts',
@@ -444,11 +472,13 @@ const QUESTION_BANK = [
     category: 'hours',
     type: 'number',
     text: 'כמה משמרות 02:00–06:00 עשית?',
-    scale: [[0, 0], [3, 3], [8, 5], [15, 8], [25, 10]],
-    weight: 1.3,
+    hint: 'כל משמרת = 51 נקודות',
+    pointsPerUnit: 51,
+    typical: 6,
     enabled: true,
     rating: { data: 5, humor: 3, group: 5 },
   },
+
   {
     id: 'night_patrol',
     category: 'hours',
@@ -464,7 +494,7 @@ const QUESTION_BANK = [
     step: 1,
     category: 'hours',
     type: 'number',
-    text: 'כמה לילות לבנים עשית? (למשל 22:00 ואז 02:00, או 02:00 ואז 06:00)',
+    text: 'כמה לילות לבנים עשית? (למשל, סיור לילה, עמדה כפולה בלילה או יזומה)',
     scale: [[0, 0], [1, 3], [3, 6], [6, 8], [10, 10]],
     weight: 1.5,
     enabled: true,
@@ -508,13 +538,14 @@ const QUESTION_BANK = [
     id: 'holidays',
     category: 'hours',
     type: 'multi',
+    display: 'outlined',
     text: 'באילו חגים שובצת? (אפשר כמה)',
     options: [
-      { label: 'ראש השנה', pain: 3 },
-      { label: 'יום כיפור (צום + עמדה)', pain: 4 },
-      { label: 'סוכות', pain: 3 },
-      { label: 'שמחת תורה', pain: 3 },
-      { label: 'שבתות, הרבה שבתות', pain: 3 },
+      { label: 'ראש השנה', points: 58 },
+      { label: 'יום כיפור (צום + עמדה)', points: 35 },
+      { label: 'סוכות', points: 47 },
+      { label: 'שמחת תורה', points: 32 },
+      { label: 'שבתות, הרבה שבתות', points: 42 },
     ],
     enabled: true,
     rating: { data: 5, humor: 3, group: 5 },
@@ -525,10 +556,10 @@ const QUESTION_BANK = [
     id: 'pre_home_gap',
     category: 'home',
     type: 'single',
+    display: 'outlined',
     text: 'ביום שהופעת ב"יוצאים", כמה זמן לפני היציאה נגמרה המשמרת האחרונה שלך?',
     options: [
-      { label: 'לא שובצתי ביום יציאה (מישהו שם אוהב אותי)', pain: 0 },
-      { label: '24 שעות ומעלה', pain: 1 },
+      { label: 'לא שובצתי ביום יציאה (מישהו שם אוהב אותי)', points: -150 },
       { label: '12–24 שעות', pain: 3 },
       { label: '6–12 שעות', pain: 5 },
       { label: '2–6 שעות', pain: 8 },
@@ -625,10 +656,10 @@ const QUESTION_BANK = [
     type: 'single',
     text: 'כמה מנוחה קיבלת בממוצע בין משימה למשימה? (לפי החוק: 8 שעות אחרי משמרת של 4)',
     options: [
-      { label: '12+ שעות (פנסיונר)', pain: 0 },
+      { label: '12+ שעות (מזליטס)', pain: 0 },
       { label: '8–12 שעות (לפי הספר)', pain: 2 },
-      { label: '6–8 שעות', pain: 5 },
-      { label: '4–6 שעות', pain: 7 },
+      { label: '8 שעות', pain: 5 },
+      { label: '4 שעות', pain: 7 },
       { label: 'פחות מ-4. מה זה מנוחה?', pain: 10 },
     ],
     weight: 1.5,
@@ -711,7 +742,20 @@ const QUESTION_BANK = [
     scale: [[0, 0], [2, 3], [5, 6], [10, 8], [20, 10]],
     enabled: false,
     rating: { data: 2, humor: 4, group: 5 },
+  },  {
+    id: 'standby_called',
+    max: 40,
+    step: 1,
+    category: 'rest',
+    type: 'number',
+    text: 'כמה פעמים הוקפצת ככיתת כוננות?',
+    hint: 'כל הקפצה = 35 נקודות',
+    pointsPerUnit: 35,
+    typical: 3,
+    enabled: true,
+    rating: { data: 2, humor: 3, group: 5 },
   },
+
   {
     id: 'shower_timing',
     category: 'rest',
@@ -899,19 +943,20 @@ const QUESTION_BANK = [
 
   // ───────── תנאי מחיה ─────────
   {
-    id: 'schnitzel',
+    id: 'dining_regret',
     category: 'life',
     type: 'single',
-    text: 'כמה שניצלים אכלת ב-80 יום?',
+    text: 'כמה פעמים הלכת לחדר אוכל והתחרטת כשראית את האוכל?',
     options: [
-      { label: 'פחות מ-10', pain: 2 },
-      { label: '10–30', pain: 4 },
-      { label: '30–60', pain: 7 },
-      { label: 'אני 40% שניצל', pain: 10 },
+      { label: 'אף פעם (יש לי טעם מפוקפק)', pain: 0 },
+      { label: 'פעם-פעמיים', pain: 3 },
+      { label: 'כל שבוע', pain: 6 },
+      { label: 'כל ארוחה. ובכל זאת חזרתי', pain: 10 },
     ],
     enabled: true,
     rating: { data: 1, humor: 5, group: 5 },
   },
+
   {
     id: 'sleep_place',
     category: 'life',

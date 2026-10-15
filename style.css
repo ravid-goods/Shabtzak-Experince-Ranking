@@ -158,6 +158,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   display: grid; place-items: center;
 }
 
+/* כרטיסים נפרדים עם גבול מודגש בין האפשרויות */
+.cards.outlined { border: 0; gap: 10px; }
+.cards.outlined .opt,
+.cards.outlined .opt:nth-child(3n + 1),
+.cards.outlined.cols-2 .opt:nth-child(2n + 1) {
+  border: 2px solid var(--ink);
+  margin: 0;
+  min-height: 100px;
+}
+.cards.outlined .opt.on { border-color: var(--navy); box-shadow: 0 5px 0 var(--soft); }
+
 /* גלילה אופקית לרשימות ארוכות */
 .cards.scroll {
   display: flex; overflow-x: auto; gap: 14px; border: 0;

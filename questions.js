@@ -259,7 +259,7 @@ const QUESTION_BANK = [
       { label: 'שתיהן, באותו שבוע, באותן שעות', pain: 7 },
       { label: 'לא עשיתי אף אחת (מי אתה?)', pain: 0 },
     ],
-    enabled: true,
+    enabled: false,
     rating: { data: 5, humor: 4, group: 5 },
   },
   {
@@ -829,7 +829,7 @@ const QUESTION_BANK = [
     type: 'text',
     text: 'מה המשימה הכי הזויה ששובצת אליה?',
     placeholder: 'למשל: "שמירה על משטח ריק"',
-    enabled: true,
+    enabled: false,
     rating: { data: 3, humor: 5, group: 4 },
   },
 
